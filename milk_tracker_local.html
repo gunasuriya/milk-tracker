@@ -1,7 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
 <head>
-    <meta charset="UTF-g">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Milk Tracker</title>
     <!-- 1. Include Tailwind CSS for styling -->
@@ -191,8 +189,8 @@
                 // 1. Filter entries for the selected month
                 const monthEntries = allEntries.filter(entry => entry.date.startsWith(selectedMonth));
 
-                // 2. Sort entries by date
-                monthEntries.sort((a, b) => a.date.localeCompare(b.date));
+                // 2. Sort entries by date (descending)
+                monthEntries.sort((a, b) => b.date.localeCompare(a.date));
 
                 // 3. Calculate totals
                 const totalL = monthEntries.reduce((sum, entry) => sum + entry.liters, 0);
