@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-g">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Milk Tracker</title>
     <!-- 1. Include Tailwind CSS for styling -->
@@ -25,13 +25,26 @@
 <body class="bg-gray-100 min-h-screen">
 
     <div class="max-w-lg mx-auto p-4 md:p-6 bg-white min-h-screen md:min-h-0 md:mt-10 md:rounded-2xl md:shadow-xl">
-        <header class="text-center mb-6 pb-4 border-b border-gray-200">
-            <h1 class="text-3xl font-bold text-blue-700">Daily Milk Tracker</h1>
-            <p class="text-sm text-gray-500">Your personal milk ledger</p>
+        <header class="mb-6 pb-4 border-b border-gray-200">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-bold text-blue-700">Daily Milk Tracker</h1>
+                <!-- Sign-out button, hidden by default -->
+                <button id="btn-sign-out" class="hidden text-sm text-blue-600 hover:underline">Sign Out</button>
+            </div>
+            <p id="status-text" class="text-sm text-gray-500">Connecting to shared ledger...</p>
         </header>
 
-        <!-- Main App Body -->
-        <main class="space-y-8">
+        <!-- Main Login Button (visible on load) -->
+        <div id="login-container" class="text-center py-20">
+            <p class="text-lg text-gray-700 mb-6">Please sign in to access the shared milk ledger.</p>
+            <button id="btn-sign-in" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg shadow-lg transition-transform duration-100 active:scale-95 flex items-center justify-center mx-auto">
+                <svg class="w-6 h-6 mr-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
+                Sign in with Google
+            </button>
+        </div>
+
+        <!-- Main App Body (hidden by default) -->
+        <main id="main-content" class="space-y-8 hidden">
 
             <!-- Section 1: Add New Entry -->
             <section class="bg-gray-50 p-5 rounded-lg shadow-inner space-y-4">
@@ -93,62 +106,72 @@
             </section>
         </main>
         
-        <!-- User ID Display -->
+        <!-- Footer -->
         <footer class="mt-8 text-center text-xs text-gray-400 border-t pt-4">
-            <p>Your data is saved automatically.</p>
-            <p class="mt-2">User ID: <span id="user-id" class="font-mono">Loading...</span></p>
+            <p id="footer-text">Data is synced to the cloud.</p>
         </footer>
     </div>
 
-    <!-- 2. Include Firebase JS SDKs -->
+    <!-- 2. All JavaScript logic using Firebase -->
     <script type="module">
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
             getAuth, 
-            signInAnonymously, 
-            onAuthStateChanged,
-            signInWithCustomToken
+            onAuthStateChanged, 
+            GoogleAuthProvider, 
+            signInWithPopup, 
+            signOut 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
             collection, 
             addDoc, 
-            onSnapshot, 
-            query, 
+            deleteDoc, 
             doc, 
-            deleteDoc,
-            serverTimestamp,
-            setLogLevel
+            onSnapshot, 
+            query,
+            setLogLevel 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Config
+        const firebaseConfig = {
+        apiKey: "AIzaSyBMl2iJOLiIKmRcUWKQj-Yqu5CBifJqxUg",
+        authDomain: "milk-tracker-827c1.firebaseapp.com",
+        projectId: "milk-tracker-827c1",
+        storageBucket: "milk-tracker-827c1.firebasestorage.app",
+        messagingSenderId: "586078857760",
+        appId: "1:586078857760:web:430733929a14ee4fb72a45",
+        measurementId: "G-FFH8JENDJ5"
+        };
+
+        // --- Initialize Firebase ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        setLogLevel('Debug'); // For more detailed console logs
+
+        // This is a special variable for shared data in this environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-milk-ledger';
 
         // --- Configuration ---
         const PRICE_PER_LITER = 55;
-        // Use environment variables provided by the platform
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-milk-tracker';
 
-        // --- Firebase Initialization ---
-        let db, auth, userId;
-        let entriesCollectionRef;
-        let allEntries = []; // Local cache of all entries
-        let unsubscribeEntries = null; // To stop the listener later
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            setLogLevel('Debug'); // Enable debug logging for Firestore
-        } catch (error) {
-            console.error("Error initializing Firebase:", error);
-            document.body.innerHTML = "Error initializing app. Check console.";
-        }
-        
         // --- App State ---
         let currentLiters = 0.5;
         let selectedMonth = '';
+        let allEntries = []; // Local cache, synced with Firebase
+        let entriesCollectionRef; // Will be set after auth
+        let currentUser = null; // Store the auth user object
+        let unsubscribeFromFirestore = null; // Function to stop the listener
 
         // --- DOM Elements ---
+        const statusText = document.getElementById('status-text');
+        const loginContainer = document.getElementById('login-container');
+        const btnSignIn = document.getElementById('btn-sign-in');
+        const btnSignOut = document.getElementById('btn-sign-out');
+        const mainContent = document.getElementById('main-content');
+        
         const dateInput = document.getElementById('date-input');
         const btnMinus = document.getElementById('btn-minus');
         const btnPlus = document.getElementById('btn-plus');
@@ -160,21 +183,13 @@
         const logContainer = document.getElementById('log-container');
         const logEmpty = document.getElementById('log-empty');
         const messageBox = document.getElementById('message-box');
-        const userIdEl = document.getElementById('user-id');
 
         // --- Utility Functions ---
-        
-        /**
-         * Gets today's date in YYYY-MM-DD format
-         */
+
         function getTodayDate() {
-            const today = new Date();
-            return today.toISOString().split('T')[0];
+            return new Date().toISOString().split('T')[0];
         }
 
-        /**
-         * Gets the current month in YYYY-MM format
-         */
         function getCurrentMonth() {
             const today = new Date();
             const year = today.getFullYear();
@@ -182,66 +197,11 @@
             return `${year}-${month}`;
         }
 
-        /**
-         * Formats a date string (YYYY-MM-DD) to a readable format (e.g., 17 Nov 2025)
-         */
         function formatDate(dateString) {
-            const date = new Date(dateString + "T00:00:00"); // Fix for timezone issues
-            return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-        }
-
-        // --- App Logic ---
-
-        /**
-         * Updates the liters display in the form
-         */
-        function updateLitersDisplay() {
-            litersDisplay.textContent = `${currentLiters.toFixed(1)} L`;
-        }
-
-        /**
-         * Renders the report (summary and daily log) for the selected month
-         */
-        function renderReport() {
-            if (!selectedMonth) return;
-
-            // 1. Filter entries for the selected month
-            const monthEntries = allEntries.filter(entry => entry.date.startsWith(selectedMonth));
-
-            // 2. Sort entries by date
-            monthEntries.sort((a, b) => a.date.localeCompare(b.date));
-
-            // 3. Calculate totals
-            const totalL = monthEntries.reduce((sum, entry) => sum + entry.liters, 0);
-            const totalAmt = totalL * PRICE_PER_LITER;
-
-            // 4. Update summary display
-            totalLitersEl.textContent = `${totalL.toFixed(1)} L`;
-            totalAmountEl.textContent = `₹${totalAmt.toFixed(2)}`;
-
-            // 5. Update daily log
-            logContainer.innerHTML = ''; // Clear previous entries
-            if (monthEntries.length === 0) {
-                logContainer.appendChild(logEmpty);
-            } else {
-                monthEntries.forEach(entry => {
-                    const entryEl = document.createElement('div');
-                    entryEl.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg border';
-                    entryEl.innerHTML = `
-                        <div>
-                            <div class="font-semibold">${formatDate(entry.date)}</div>
-                            <div class="text-sm text-gray-600">${entry.liters.toFixed(1)} L @ ₹${PRICE_PER_LITER}/L = ₹${(entry.liters * PRICE_PER_LITER).toFixed(2)}</div>
-                        </div>
-                        <button data-id="${entry.id}" class="delete-btn bg-red-100 text-red-700 hover:bg-red-200 text-xs font-bold py-1 px-3 rounded-full transition-colors">&times; Delete</button>
-                    `;
-                    logContainer.appendChild(entryEl);
-                });
-            }
+            const date = new Date(dateString + "T00:00:00");
+            return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
         }
         
-        /**
-         * Shows a temporary message to the user
-         */
         function showMessage(text, isError = false) {
             messageBox.textContent = text;
             messageBox.className = isError 
@@ -253,11 +213,51 @@
             }, 3000);
         }
 
-        // --- Event Handlers ---
+        // --- App Logic (Reads from `allEntries` cache) ---
 
-        /**
-         * Handles the form submission to add a new entry
-         */
+        function updateLitersDisplay() {
+            litersDisplay.textContent = `${currentLiters.toFixed(1)} L`;
+        }
+
+        function renderReport() {
+            if (!selectedMonth) return;
+
+            const monthEntries = allEntries.filter(entry => entry.date.startsWith(selectedMonth));
+            
+            // Sort entries by date (descending)
+            monthEntries.sort((a, b) => b.date.localeCompare(a.date));
+
+            const totalL = monthEntries.reduce((sum, entry) => sum + entry.liters, 0);
+            const totalAmt = totalL * PRICE_PER_LITER;
+
+            totalLitersEl.textContent = `${totalL.toFixed(1)} L`;
+            totalAmountEl.textContent = `₹${totalAmt.toFixed(2)}`;
+
+            logContainer.innerHTML = '';
+            if (monthEntries.length === 0) {
+                logContainer.appendChild(logEmpty);
+            } else {
+                monthEntries.forEach(entry => {
+                    // Get the user's first name
+                    const firstName = entry.userName ? entry.userName.split(' ')[0] : 'User';
+
+                    const entryEl = document.createElement('div');
+                    entryEl.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg border';
+                    entryEl.innerHTML = `
+                        <div>
+                            <div class="font-semibold">${formatDate(entry.date)}</div>
+                            <div class="text-sm text-gray-600">${entry.liters.toFixed(1)} L @ ₹${PRICE_PER_LITER}/L = ₹${(entry.liters * PRICE_PER_LITER).toFixed(2)}</div>
+                            <div class="text-xs text-blue-600 font-medium pt-1">Added by: ${firstName}</div>
+                        </div>
+                        <button data-id="${entry.id}" class="delete-btn bg-red-100 text-red-700 hover:bg-red-200 text-xs font-bold py-1 px-3 rounded-full transition-colors">&times; Delete</button>
+                    `;
+                    logContainer.appendChild(entryEl);
+                });
+            }
+        }
+
+        // --- Firebase Logic (Writes to Firestore) ---
+
         async function handleSubmit() {
             const date = dateInput.value;
             const liters = currentLiters;
@@ -266,8 +266,8 @@
                 showMessage("Please select a date.", true);
                 return;
             }
-            if (!userId || !entriesCollectionRef) {
-                showMessage("Database not ready. Please wait.", true);
+            if (!currentUser) {
+                showMessage("You are not signed in.", true);
                 return;
             }
 
@@ -275,12 +275,17 @@
             btnSubmit.textContent = "Adding...";
 
             try {
-                await addDoc(entriesCollectionRef, {
-                    userId: userId,
+                // Create new entry, now with user info
+                const newEntry = {
                     date: date,
                     liters: liters,
-                    createdAt: serverTimestamp()
-                });
+                    userId: currentUser.uid,
+                    userName: currentUser.displayName,
+                    userEmail: currentUser.email
+                };
+                
+                // Add to shared Firestore collection
+                await addDoc(entriesCollectionRef, newEntry);
                 
                 showMessage("Entry added successfully!");
                 currentLiters = 0.5; // Reset form
@@ -288,30 +293,25 @@
 
             } catch (error) {
                 console.error("Error adding document: ", error);
-                showMessage("Error adding entry. See console.", true);
+                showMessage("Error adding entry. Check console.", true);
             } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Add Entry";
             }
         }
 
-        /**
-         * Handles deleting an entry
-         */
         async function handleDelete(e) {
             if (!e.target.classList.contains('delete-btn')) return;
             
             const docId = e.target.dataset.id;
             if (!docId) return;
 
-            // No confirm() popup as it may be blocked
             e.target.textContent = 'Deleting...';
             e.target.disabled = true;
             
             try {
-                const docRef = doc(db, 'artifacts', appId, 'users', userId, 'milk-entries', docId);
-                await deleteDoc(docRef);
-                // The onSnapshot listener will automatically update the UI.
+                // Delete from Firestore
+                await deleteDoc(doc(db, entriesCollectionRef.path, docId));
                 showMessage("Entry deleted.");
             } catch (error) {
                 console.error("Error deleting document: ", error);
@@ -320,48 +320,46 @@
         }
         
         /**
-         * Sets up the real-time listener for entries
+         * Sets up the real-time listener on Firestore.
          */
-        function setupEntryListener() {
-            if (!userId || !db) {
-                console.log("Firestore not ready, skipping listener setup.");
-                return;
-            }
-            
-            console.log(`Setting up listener for user: ${userId}`);
-            entriesCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'milk-entries');
-            
+        function setupSnapshotListener() {
+            // Point to the new, SHARED collection
+            entriesCollectionRef = collection(db, 'artifacts', appId, 'public/data', 'milk-entries');
+
             const q = query(entriesCollectionRef);
 
-            // Stop any previous listener
-            if (unsubscribeEntries) {
-                unsubscribeEntries();
+            // Unsubscribe from any old listener
+            if (unsubscribeFromFirestore) {
+                unsubscribeFromFirestore();
             }
 
-            unsubscribeEntries = onSnapshot(q, (querySnapshot) => {
-                allEntries = [];
-                querySnapshot.forEach((doc) => {
-                    allEntries.push({ id: doc.id, ...doc.data() });
-                });
-                console.log(`Fetched ${allEntries.length} entries.`);
-                renderReport(); // Re-render the report with new data
+            // Start the new listener
+            unsubscribeFromFirestore = onSnapshot(q, (snapshot) => {
+                console.log(`Received ${snapshot.docs.length} entries from shared ledger.`);
+                allEntries = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                renderReport();
+
             }, (error) => {
-                console.error("Error getting entries: ", error);
-                showMessage("Error fetching entries. See console.", true);
+                console.error("Error listening to database: ", error);
+                statusText.textContent = "Error connecting to database.";
             });
         }
-        
+
         /**
-         * Initializes the application
+         * Initializes the app's event listeners
          */
-        function initApp() {
+        function initAppEventListeners() {
             // Set default form and report dates
             dateInput.value = getTodayDate();
             selectedMonth = getCurrentMonth();
             monthSelector.value = selectedMonth;
             
             updateLitersDisplay();
-
+            
             // --- Add Event Listeners ---
             btnMinus.addEventListener('click', () => {
                 if (currentLiters > 0.5) {
@@ -379,51 +377,77 @@
 
             monthSelector.addEventListener('change', () => {
                 selectedMonth = monthSelector.value;
-                renderReport();
+                renderReport(); // Re-render with local cache
             });
 
             logContainer.addEventListener('click', handleDelete);
         }
 
-        // --- Authentication ---
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                userId = user.uid;
-                userIdEl.textContent = userId;
-                console.log("User is signed in with UID:", userId);
-                setupEntryListener(); // Now we can fetch data
-            } else {
-                userId = null;
-                userIdEl.textContent = "Not signed in";
-                console.log("User is signed out.");
-                if (unsubscribeEntries) {
-                    unsubscribeEntries(); // Stop listening
-                }
-                allEntries = [];
-                renderReport();
+        // --- Authentication Flow ---
+
+        // Sign in
+        btnSignIn.addEventListener('click', async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+                // onAuthStateChanged will handle the rest
+            } catch (error) {
+                console.error("Error signing in:", error);
+                statusText.textContent = "Error signing in. Please try again.";
             }
         });
 
-        // Sign in the user automatically
-        async function authenticateUser() {
+        // Sign out
+        btnSignOut.addEventListener('click', async () => {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    console.log("Signing in with custom token...");
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    console.log("Signing in anonymously...");
-                    await signInAnonymously(auth);
-                }
+                await signOut(auth);
+                // onAuthStateChanged will handle the rest
             } catch (error) {
-                console.error("Authentication error:", error);
-                userIdEl.textContent = "Auth Error";
+                console.error("Error signing out:", error);
             }
-        }
-        
-        // --- Start the App ---
-        document.addEventListener('DOMContentLoaded', () => {
-            initApp();
-            authenticateUser();
+        });
+
+        // Main auth state listener
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // User is signed IN
+                currentUser = user;
+                
+                // Show the main app
+                mainContent.classList.remove('hidden');
+                loginContainer.classList.add('hidden');
+                btnSignOut.classList.remove('hidden');
+                
+                const firstName = user.displayName ? user.displayName.split(' ')[0] : 'User';
+                statusText.textContent = `Welcome, ${firstName}!`;
+                
+                // Initialize app event listeners (do this only once)
+                if (!window.appInitialized) {
+                    initAppEventListeners();
+                    window.appInitialized = true;
+                }
+                
+                // Start listening for data
+                setupSnapshotListener();
+
+            } else {
+                // User is signed OUT
+                currentUser = null;
+                
+                // Show the login screen
+                mainContent.classList.add('hidden');
+                loginContainer.classList.remove('hidden');
+                btnSignOut.classList.add('hidden');
+                
+                statusText.textContent = "Please sign in to continue.";
+                
+                // Stop listening to data
+                if (unsubscribeFromFirestore) {
+                    unsubscribeFromFirestore();
+                }
+                allEntries = [];
+                renderReport(); // Clear the report
+            }
         });
 
     </script>
